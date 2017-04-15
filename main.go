@@ -43,38 +43,7 @@ func NewStateTheme(c color.RGBA) StateTheme {
 }
 
 func main() {
-	imgData, err := ioutil.ReadFile(os.Args[1])
-	if err != nil {
-		fmt.Println(err)
-		return
-	}
-	resp, err := http.PostForm("http://pictaculous.com/api/1.0/", url.Values{
-		"image": {string(imgData)},
-	})
-	if err != nil {
-		fmt.Println(err)
-		return
-	}
-	defer resp.Body.Close()
-	var result Response
-
-	json.NewDecoder(resp.Body).Decode(&result)
-
-	colors := []color.RGBA{}
-
-	for _, c := range result.Info.Colors {
-		n, err := strconv.ParseUint("0x"+c+"00", 0, 32)
-		if err != nil {
-			fmt.Println(err)
-			continue
-		}
-		colors = append(colors, color.RGBA{
-			R: uint8(n & 0xff000000 >> 24),
-			G: uint8(n & 0x00ff0000 >> 16),
-			B: uint8(n & 0x0000ff00 >> 8),
-			A: math.MaxUint8,
-		})
-	}
+	colors, err := paletteFromImage(os.Args[1])
 
 	title, body := GenerateTextColors(colors[0])
 	title = compositeColors(title, colors[0])
@@ -112,6 +81,7 @@ func main() {
 		return
 	}
 	defer f.Close()
+
 	_, err = f.Write(newConfigFile)
 	if err != nil {
 		fmt.Println(err)
@@ -155,3 +125,40 @@ client.placeholder      #{{.Urgent.Border}} #{{.Urgent.Background}} #{{.Urgent.F
 
 client.background       #{{.Core.Background}}
 `
+
+func paletteFromImage(fileName string) ([]color.RGBA, error) {
+	imgData, err := ioutil.ReadFile(fileName)
+	if err != nil {
+		fmt.Println(err)
+		return nil, err
+	}
+	resp, err := http.PostForm("http://pictaculous.com/api/1.0/", url.Values{
+		"image": {string(imgData)},
+	})
+	if err != nil {
+		fmt.Println(err)
+		return nil, err
+	}
+	defer resp.Body.Close()
+	var result Response
+
+	json.NewDecoder(resp.Body).Decode(&result)
+
+	colors := []color.RGBA{}
+
+	for _, c := range result.Info.Colors {
+		n, err := strconv.ParseUint("0x"+c+"00", 0, 32)
+		if err != nil {
+			fmt.Println(err)
+			continue
+		}
+		colors = append(colors, color.RGBA{
+			R: uint8(n & 0xff000000 >> 24),
+			G: uint8(n & 0x00ff0000 >> 16),
+			B: uint8(n & 0x0000ff00 >> 8),
+			A: math.MaxUint8,
+		})
+	}
+
+	return colors, nil
+}
