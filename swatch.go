@@ -86,8 +86,12 @@ func calculateMinimumAlpha(foreground color.RGBA, background color.RGBA, minCont
 }
 
 func setAlphaComponent(c color.RGBA, a uint8) color.RGBA {
-	c.A = a
-	return c
+	return color.RGBA{
+		R: c.R,
+		G: c.G,
+		B: c.B,
+		A: a,
+	}
 }
 
 func compositeColors(foreground color.RGBA, background color.RGBA) color.RGBA {
@@ -100,20 +104,20 @@ func compositeColors(foreground color.RGBA, background color.RGBA) color.RGBA {
 	}
 }
 func compositeAlpha(foregroundAlpha, backgroundAlpha uint8) uint8 {
-	return uint8(0xFF - (((0xFF - uint16(backgroundAlpha)) * (0xFF - uint16(foregroundAlpha))) / 0xFF))
+	return uint8(0xFF - (((0xFF - uint64(backgroundAlpha)) * (0xFF - uint64(foregroundAlpha))) / 0xFF))
 }
 func compositeComponent(fgC, fgA, bgC, bgA, a uint8) uint8 {
 	var (
-		fgC16 = uint16(fgC)
-		fgA16 = uint16(fgA)
-		bgC16 = uint16(bgC)
-		bgA16 = uint16(bgA)
-		a16   = uint16(a)
+		fgC64 = uint64(fgC)
+		fgA64 = uint64(fgA)
+		bgC64 = uint64(bgC)
+		bgA64 = uint64(bgA)
+		a64   = uint64(a)
 	)
 	if a == 0 {
 		return 0
 	}
-	return uint8(((0xFF * fgC16 * fgA16) + (bgC16 * bgA16 * (0xFF - fgA16))) / (a16 * 0xFF))
+	return uint8(((0xFF * fgC64 * fgA64) + (bgC64 * bgA64 * (0xFF - fgA64))) / (a64 * 0xFF))
 }
 
 func calculateContrast(foreground, background color.RGBA) float64 {
