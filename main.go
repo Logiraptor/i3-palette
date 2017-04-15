@@ -2,17 +2,14 @@ package main
 
 import (
 	"bytes"
-	"encoding/json"
 	"fmt"
 	"html/template"
+	"image"
 	"image/color"
+	_ "image/png"
 	"io/ioutil"
-	"math"
-	"net/http"
-	"net/url"
 	"os"
 	"path"
-	"strconv"
 )
 
 type Response struct {
@@ -44,6 +41,10 @@ func NewStateTheme(c color.RGBA) StateTheme {
 
 func main() {
 	colors, err := paletteFromImage(os.Args[1])
+	if err != nil {
+		fmt.Println(err)
+		return
+	}
 
 	title, body := GenerateTextColors(colors[0])
 	title = compositeColors(title, colors[0])
@@ -52,9 +53,9 @@ func main() {
 	theme := Theme{
 		Focused:  NewStateTheme(colors[0]),
 		Active:   NewStateTheme(colors[1]),
-		Inactive: NewStateTheme(colors[0]),
-		Urgent:   NewStateTheme(colors[0]),
-		Core:     NewStateTheme(colors[0]),
+		Inactive: NewStateTheme(colors[2]),
+		Urgent:   NewStateTheme(colors[3]),
+		Core:     NewStateTheme(colors[4]),
 	}
 
 	buf := new(bytes.Buffer)
@@ -127,37 +128,23 @@ client.background       #{{.Core.Background}}
 `
 
 func paletteFromImage(fileName string) ([]color.RGBA, error) {
-	imgData, err := ioutil.ReadFile(fileName)
+	f, err := os.Open(fileName)
 	if err != nil {
-		fmt.Println(err)
 		return nil, err
 	}
-	resp, err := http.PostForm("http://pictaculous.com/api/1.0/", url.Values{
-		"image": {string(imgData)},
-	})
+	img, _, err := image.Decode(f)
 	if err != nil {
-		fmt.Println(err)
 		return nil, err
 	}
-	defer resp.Body.Close()
-	var result Response
 
-	json.NewDecoder(resp.Body).Decode(&result)
+	c := ColorCut{}
+	palette := c.Quantize(make(color.Palette, 0, 5), img)
 
 	colors := []color.RGBA{}
 
-	for _, c := range result.Info.Colors {
-		n, err := strconv.ParseUint("0x"+c+"00", 0, 32)
-		if err != nil {
-			fmt.Println(err)
-			continue
-		}
-		colors = append(colors, color.RGBA{
-			R: uint8(n & 0xff000000 >> 24),
-			G: uint8(n & 0x00ff0000 >> 16),
-			B: uint8(n & 0x0000ff00 >> 8),
-			A: math.MaxUint8,
-		})
+	for _, c := range palette {
+		fmt.Println(toHex(color.RGBAModel.Convert(c).(color.RGBA)))
+		colors = append(colors, color.RGBAModel.Convert(c).(color.RGBA))
 	}
 
 	return colors, nil
