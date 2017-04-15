@@ -34,8 +34,8 @@ func NewStateTheme(c color.RGBA) StateTheme {
 	title, body := GenerateTextColors(c)
 	return StateTheme{
 		Background: toHex(c),
-		Font:       toHex(compositeColors(c, title)),
-		Border:     toHex(compositeColors(c, body)),
+		Font:       toHex(compositeColors(title, c)),
+		Border:     toHex(compositeColors(body, c)),
 	}
 }
 
