@@ -16,42 +16,14 @@ var white = color.RGBAModel.Convert(color.White).(color.RGBA)
 var black = color.RGBAModel.Convert(color.Black).(color.RGBA)
 
 func GenerateTextColors(rgb color.RGBA) (title, body color.RGBA) {
-	// First check white, as most colors will be dark
-	lightBodyAlpha, lbaOk := calculateMinimumAlpha(white, rgb, MinContrastBodyText)
-	lightTitleAlpha, ltaOk := calculateMinimumAlpha(white, rgb, MinContrastTitleText)
 
-	if lbaOk && ltaOk {
-		// If we found valid light values, use them and return
-		bodyTextColor := setAlphaComponent(white, lightBodyAlpha)
-		titleTextColor := setAlphaComponent(white, lightTitleAlpha)
-		return bodyTextColor, titleTextColor
-	}
-	darkBodyAlpha, dbaOk := calculateMinimumAlpha(black, rgb, MinContrastBodyText)
-	darkTitleAlpha, dtaOk := calculateMinimumAlpha(black, rgb, MinContrastTitleText)
-	if dbaOk && dtaOk {
-		// If we found valid dark values, use them and return
-		bodyTextColor := setAlphaComponent(black, darkBodyAlpha)
-		titleTextColor := setAlphaComponent(black, darkTitleAlpha)
-		return bodyTextColor, titleTextColor
-	}
-
-	var (
-		bodyTextColor  color.RGBA
-		titleTextColor color.RGBA
-	)
-	// If we reach here then we can not find title and body values which use the same
-	// lightness, we need to use mismatched values
-	if lbaOk {
-		bodyTextColor = setAlphaComponent(white, lightBodyAlpha)
+	whiteContrast := calculateContrast(white, rgb)
+	blackContrast := calculateContrast(black, rgb)
+	if whiteContrast > blackContrast {
+		return white, white
 	} else {
-		bodyTextColor = setAlphaComponent(black, darkBodyAlpha)
+		return black, black
 	}
-	if ltaOk {
-		titleTextColor = setAlphaComponent(white, lightTitleAlpha)
-	} else {
-		titleTextColor = setAlphaComponent(black, darkTitleAlpha)
-	}
-	return bodyTextColor, titleTextColor
 }
 
 func calculateMinimumAlpha(foreground color.RGBA, background color.RGBA, minContrastRatio float64) (uint8, bool) {
@@ -135,10 +107,9 @@ func calculateContrast(foreground, background color.RGBA) float64 {
 }
 
 func calculateLuminance(c color.RGBA) float64 {
-	r, g, b, _ := c.RGBA()
-	red := f(float64(r))
-	green := f(float64(g))
-	blue := f(float64(b))
+	red := f(float64(c.R))
+	green := f(float64(c.G))
+	blue := f(float64(c.B))
 	return (0.2126 * red) + (0.7152 * green) + (0.0722 * blue)
 }
 

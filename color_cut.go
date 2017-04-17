@@ -11,8 +11,17 @@ import (
 type ColorCut struct {
 }
 
+type axis int
+
+const (
+	RedAxis = iota
+	GreenAxis
+	BlueAxis
+)
+
 type box struct {
-	colors []color.RGBA
+	min, max, rng color.RGBA
+	colors        []color.RGBA
 }
 
 var _ draw.Quantizer = &ColorCut{}
@@ -27,13 +36,15 @@ func (c *ColorCut) Quantize(p color.Palette, m image.Image) color.Palette {
 		}
 	}
 
+	firstBox := &box{colors: colors}
+	firstBox.fit()
 	var boxes = []*box{
-		&box{colors: colors},
+		firstBox,
 	}
 	l := cap(p) - len(p)
 	for i := 0; i < l; i++ {
 		sort.Slice(boxes, func(i, j int) bool {
-			return len(boxes[i].colors) < len(boxes[j].colors)
+			return (boxes[i].volume() * len(boxes[i].colors)) < (boxes[j].volume() * len(boxes[j].colors))
 		})
 
 		selectedBox := boxes[len(boxes)-1]
@@ -46,59 +57,71 @@ func (c *ColorCut) Quantize(p color.Palette, m image.Image) color.Palette {
 	return p
 }
 
-func (b *box) split() *box {
-	var (
-		min = color.RGBA{math.MaxUint8, math.MaxUint8, math.MaxUint8, math.MaxUint8}
-		max = color.RGBA{0, 0, 0, 0}
-		rng = color.RGBA{0, 0, 0, 0}
-	)
+func (b *box) longestEdgeAccessor() func(color.RGBA) uint8 {
+	if b.rng.R >= b.rng.G && b.rng.R >= b.rng.B {
+		return func(c color.RGBA) uint8 {
+			return c.R
+		}
+	} else if b.rng.G >= b.rng.R && b.rng.G >= b.rng.B {
+		return func(c color.RGBA) uint8 {
+			return c.G
+		}
+	} else {
+		return func(c color.RGBA) uint8 {
+			return c.B
+		}
+	}
+}
+
+func (b *box) volume() int {
+	return int(b.rng.R) * int(b.rng.G) * int(b.rng.B)
+}
+
+func (b *box) fit() {
+	b.min = color.RGBA{math.MaxUint8, math.MaxUint8, math.MaxUint8, math.MaxUint8}
+	b.max = color.RGBA{0, 0, 0, 0}
+	b.rng = color.RGBA{0, 0, 0, 0}
 
 	// fit bounding box
 	for _, c := range b.colors {
-		min.R = uint8min(min.R, c.R)
-		min.G = uint8min(min.G, c.G)
-		min.B = uint8min(min.B, c.B)
+		b.min.R = uint8min(b.min.R, c.R)
+		b.min.G = uint8min(b.min.G, c.G)
+		b.min.B = uint8min(b.min.B, c.B)
 
-		max.R = uint8max(max.R, c.R)
-		max.G = uint8max(max.G, c.G)
-		max.B = uint8max(max.B, c.B)
+		b.max.R = uint8max(b.max.R, c.R)
+		b.max.G = uint8max(b.max.G, c.G)
+		b.max.B = uint8max(b.max.B, c.B)
 	}
 
 	// find longest axis
-	rng.R = max.R - min.R
-	rng.G = max.G - min.G
-	rng.B = max.B - min.B
+	b.rng.R = b.max.R - b.min.R
+	b.rng.G = b.max.G - b.min.G
+	b.rng.B = b.max.B - b.min.B
+}
 
-	const (
-		RED = iota
-		GREEN
-		BLUE
-	)
+func (b *box) split() *box {
+	b.fit()
 
-	var comparator func(int, int) bool
+	var component = b.longestEdgeAccessor()
+	var midColor uint8
 
-	if rng.R > rng.G && rng.R > rng.B {
-		comparator = func(i, j int) bool {
-			return b.colors[i].R < b.colors[j].R
-		}
-	} else if rng.B > rng.G && rng.B > rng.R {
-		comparator = func(i, j int) bool {
-			return b.colors[i].G < b.colors[j].G
-		}
-	} else {
-		comparator = func(i, j int) bool {
-			return b.colors[i].B < b.colors[j].B
-		}
-	}
+	midColor = uint8((uint16(component(b.max)) + uint16(component(b.min))) >> 1)
 
-	sort.Slice(b.colors, comparator)
+	sort.Slice(b.colors, func(i, j int) bool {
+		return component(b.colors[i]) < component(b.colors[j])
+	})
 
-	midPoint := len(b.colors) / 2
+	midPoint := sort.Search(len(b.colors), func(i int) bool {
+		return component(b.colors[i]) > midColor
+	})
 
 	newBox := &box{
 		colors: b.colors[:midPoint],
 	}
 	b.colors = b.colors[midPoint:]
+
+	b.fit()
+	newBox.fit()
 
 	return newBox
 }
