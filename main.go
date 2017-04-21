@@ -10,6 +10,8 @@ import (
 	"io/ioutil"
 	"os"
 	"path"
+
+	"github.com/Logiraptor/palette"
 )
 
 type Response struct {
@@ -31,11 +33,12 @@ type StateTheme struct {
 }
 
 func NewStateTheme(c color.RGBA) StateTheme {
-	title, body := GenerateTextColors(c)
+	textColor := palette.TextColor(c)
+	hex := toHex(textColor)
 	return StateTheme{
 		Background: toHex(c),
-		Font:       toHex(compositeColors(title, c)),
-		Border:     toHex(compositeColors(body, c)),
+		Font:       hex,
+		Border:     hex,
 	}
 }
 
@@ -133,7 +136,7 @@ func paletteFromImage(fileName string) ([]color.RGBA, error) {
 		return nil, err
 	}
 
-	c := ColorCut{}
+	c := palette.ColorCut{}
 	palette := c.Quantize(make(color.Palette, 0, 5), img)
 
 	colors := []color.RGBA{}
